@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests;
 
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
-use std::error::Error;
-use std::num::ParseIntError;
+use thiserror::Error;
 
 #[derive(Debug, PartialEq)]
 enum ContinueType {
@@ -13,6 +13,7 @@ enum ContinueType {
     GoTo(String),
 }
 
+#[derive(Debug, PartialEq)]
 enum PatternType {
     Regex,
     Substr,
@@ -20,6 +21,7 @@ enum PatternType {
     NotSubstr,
 }
 
+#[derive(Debug, PartialEq)]
 struct Action {
     foo: u32,
 }
@@ -94,26 +96,19 @@ enum Rule {
     // Jump,
 }
 
-// #[derive(Debug, Clone)]
-// struct CreateRuleError;
-
-#[derive(Debug, Clone)]
-pub enum ParseRuleError {
-    Stuff,
-    InvalidInteger(ParseIntError),
+#[derive(Error, Debug)]
+pub enum RuleError {
+    #[error("Invalid field (key={key:?}, value={value:?})")]
+    InvalidField { key: String, value: String },
 }
 
-impl From<ParseIntError> for ParseRuleError {
-    fn from(e: ParseIntError) -> Self {
-        Self::InvalidInteger(e)
-    }
-}
-
-fn create_single(config: HashMap<&str, &str>) -> Result<Rule, ParseRuleError> {
+fn create_single(config: HashMap<&str, &str>) -> Result<Rule> {
+    println!("!! {:#?}", config);
+    println!("parse {:?}", "0".parse::<u32>());
     Ok(Rule::Single(Single {
         continue_: match config
             .get("continue")
-            .unwrap_or_else(|| &"Did not find continue_ options")
+            .unwrap_or(&"takenext")
             .to_lowercase()
             .as_str()
         {
@@ -121,28 +116,34 @@ fn create_single(config: HashMap<&str, &str>) -> Result<Rule, ParseRuleError> {
             "dontcont" => ContinueType::DontCont,
             "endmatch" => ContinueType::EndMatch,
             "goto" => ContinueType::GoTo("what".to_string()),
-            _ => return Err(ParseRuleError::Stuff),
+            val => {
+                return Err(anyhow!(RuleError::InvalidField {
+                    key: "continue_".to_string(),
+                    value: val.to_string(),
+                }));
+            }
         },
         pattern_type: match config.get("ptype").unwrap().to_lowercase().as_str() {
             "regexp" => PatternType::Regex,
             "substr" => PatternType::Substr,
             "nregexp" => PatternType::NotRegex,
             "nsubstr" => PatternType::NotSubstr,
-            _ => return Err(ParseRuleError::Stuff),
+            val => {
+                return Err(anyhow!(RuleError::InvalidField {
+                    key: "pattern_type".to_string(),
+                    value: val.to_string(),
+                }));
+            }
         },
         pattern: config.get("pattern").unwrap().to_string(),
         description: config.get("desc").unwrap().to_string(),
         action: vec![],
-        window: config.get("pattern").unwrap().parse()?,
-        threshold: config.get("threshold").unwrap().parse()?,
+        window: config.get("window").unwrap_or(&"0").parse()?,
+        threshold: config.get("thresh").unwrap_or(&"0").parse()?,
     }))
 }
 
-fn parse_rule(s: &str) -> Result<Rule, ParseRuleError> {
-    /*
-
-    */
-
+fn parse_rule(s: &str) -> Result<Rule> {
     let mut config = HashMap::new();
 
     for line in s.split("\n") {
@@ -153,6 +154,11 @@ fn parse_rule(s: &str) -> Result<Rule, ParseRuleError> {
 
     return match config["type"] {
         "single" => create_single(config),
-        _ => Err(ParseRuleError::Stuff),
+        val => {
+            return Err(anyhow!(RuleError::InvalidField {
+                key: "type".to_string(),
+                value: val.to_string(),
+            }));
+        }
     };
 }
