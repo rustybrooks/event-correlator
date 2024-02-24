@@ -102,13 +102,11 @@ pub enum RuleError {
     InvalidField { key: String, value: String },
 }
 
-fn create_single(config: HashMap<&str, &str>) -> Result<Rule> {
-    println!("!! {:#?}", config);
-    println!("parse {:?}", "0".parse::<u32>());
+fn create_single(config: HashMap<String, String>) -> Result<Rule> {
     Ok(Rule::Single(Single {
         continue_: match config
             .get("continue")
-            .unwrap_or(&"takenext")
+            .unwrap_or(&"takenext".to_string())
             .to_lowercase()
             .as_str()
         {
@@ -138,21 +136,33 @@ fn create_single(config: HashMap<&str, &str>) -> Result<Rule> {
         pattern: config.get("pattern").unwrap().to_string(),
         description: config.get("desc").unwrap().to_string(),
         action: vec![],
-        window: config.get("window").unwrap_or(&"0").parse()?,
-        threshold: config.get("thresh").unwrap_or(&"0").parse()?,
+        window: config.get("window").unwrap_or(&"0".to_string()).parse()?,
+        threshold: config.get("thresh").unwrap_or(&"0".to_string()).parse()?,
     }))
 }
 
 fn parse_rule(s: &str) -> Result<Rule> {
     let mut config = HashMap::new();
 
+    let mut current_line: String = "".to_string();
     for line in s.split("\n") {
-        if let Some((key, value)) = line.split_once('=') {
-            config.insert(key, value);
+        if line.starts_with("#") { continue; }
+
+        current_line.push_str(line.trim());
+
+        if line.trim().ends_with("\\") {
+            continue;
         }
+
+        let cl_clone = current_line.clone();
+        if let Some((key, value)) = cl_clone.split_once('=') {
+            config.insert(key.to_string(), value.to_string());
+        }
+
+        current_line.clear();
     }
 
-    return match config["type"] {
+    return match config["type"].as_str() {
         "single" => create_single(config),
         val => {
             return Err(anyhow!(RuleError::InvalidField {
