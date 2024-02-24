@@ -103,6 +103,8 @@ pub enum RuleError {
 }
 
 fn create_single(config: HashMap<String, String>) -> Result<Rule> {
+    println!("!! {:#?}", config);
+    println!("parse {:?}", "0".parse::<u32>());
     Ok(Rule::Single(Single {
         continue_: match config
             .get("continue")
