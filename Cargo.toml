@@ -1,5 +1,5 @@
 [package]
-name = "event-correlator"
+name = "event_correlator"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,9 +7,9 @@ edition = "2021"
 name = "event_correlator"
 crate-type = ["cdylib"]
 
-#[[bin]]
-#name = "sudoku"
-## crate-type = ["cdylib"]
+[[bin]]
+name = "event-correlator"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.80"
