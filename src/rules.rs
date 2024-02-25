@@ -6,7 +6,7 @@ use thiserror::Error;
 
 mod single;
 mod jump;
-mod r#calendar
+mod calendar;
 mod suppress;
 mod pair;
 
