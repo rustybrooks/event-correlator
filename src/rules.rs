@@ -4,8 +4,11 @@ use anyhow::{anyhow, Result};
 use regex::Regex;
 use thiserror::Error;
 
-#[cfg(test)]
-mod tests;
+mod single;
+mod jump;
+mod r#calendar
+mod suppress;
+mod pair;
 
 #[derive(Error, Debug)]
 pub enum RuleError {
@@ -34,89 +37,42 @@ pub enum PatternType {
 }
 
 // #[derive(Debug, PartialEq)]
-enum Pattern {
+pub enum Pattern {
     Regex(Regex),
     Substr(String),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Action {
-    foo: u32,
+pub struct ActionWrite {}
+
+#[derive(Debug, PartialEq)]
+pub struct ActionShellCmd {}
+
+#[derive(Debug, PartialEq)]
+pub struct ActionPipe {}
+
+#[derive(Debug, PartialEq)]
+pub struct ActionShellExec {}
+
+#[derive(Debug, PartialEq)]
+pub struct ActionPipeExec {}
+
+#[derive(Debug, PartialEq)]
+pub struct ActionLogOnly {}
+
+#[derive(Debug, PartialEq)]
+pub enum Action {
+    Write(ActionWrite),
+    ShellCmd(ActionShellCmd),
+    Pipe(ActionPipe),
+    ShellExec(ActionShellExec),
+    PipeExec(ActionPipeExec),
+    LogOnly(ActionLogOnly),
+    None,
 }
-
-pub struct Single {
-    continue_: ContinueType,
-    pattern_type: PatternType,
-    pattern: Pattern,
-    // varmap
-    // context
-    description: String,
-    action: Vec<Action>,
-    window: u32,
-    threshold: u32,
-}
-
-impl CheckRule for Single {
-    fn check_rule(&self, line: &str) -> bool {
-        match &self.pattern {
-            Pattern::Regex(re) => { return re.find(line).is_some(); }
-            Pattern::Substr(substr) => { line.contains(substr) }
-        }
-    }
-}
-
-/*
-struct Pair {
-    continue_: ContinueType,
-    pattern_type: PatternType,
-    pattern: String,
-    // varmap
-    // context
-    description: String,
-    action: Vec<Action>,
-    continue2: ContinueType,
-    pyte2: PatternType,
-    pattern2: String,
-    // varmap2
-    // context2
-    desc2: String,
-    action2: Vec<Action>,
-
-    window: u32,
-    suppress: u32,
-}
-
-struct Suppress {
-    pattern_type: PatternType,
-    pattern: String,
-    // varmap
-    // context
-    description: String,
-}
-
-struct Calendar {
-    time: String,
-    // context
-    description: String,
-    action: Vec<Action>,
-}
-
-struct Jump {
-    continue_: ContinueType,
-    pattern_type: PatternType,
-    pattern: String,
-    // varmap
-    // context
-    cfset: Vec<Rule>,
-    description: String,
-    action: Vec<Action>,
-    jump: String,
-}
-
- */
 
 pub enum Rule {
-    Single(Single),
+    Single(single::Single),
     // Pair,
     // Suppress,
     // Calendar,
@@ -131,54 +87,26 @@ impl CheckRule for Rule {
     }
 }
 
-
-fn create_single(config: HashMap<String, String>) -> Result<Rule> {
-    // println!("!! {:#?}", config);
-    // println!("parse {:?}", "0".parse::<u32>());
-
-    let pattern_type = match config.get("ptype").unwrap().to_lowercase().as_str() {
-        "regexp" => PatternType::Regex,
-        "substr" => PatternType::Substr,
-        "nregexp" => PatternType::NotRegex,
-        "nsubstr" => PatternType::NotSubstr,
-        val => {
-            return Err(anyhow!(RuleError::InvalidField {
-                    key: "pattern_type".to_string(),
-                    value: val.to_string(),
-                }));
-        }
-    };
-    let pattern: Pattern;
-    pattern = match pattern_type {
-        PatternType::Regex | PatternType::NotRegex => Pattern::Regex(Regex::new(config.get("pattern").unwrap()).unwrap()),
-        PatternType::Substr | PatternType::NotSubstr => Pattern::Substr(config.get("pattern").unwrap().to_string()),
-    };
-
-    Ok(Rule::Single(Single {
-        continue_: match config
-            .get("continue")
-            .unwrap_or(&"takenext".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "takenext" => ContinueType::TakeNext,
-            "dontcont" => ContinueType::DontCont,
-            "endmatch" => ContinueType::EndMatch,
-            "goto" => ContinueType::GoTo("what".to_string()),
-            val => {
-                return Err(anyhow!(RuleError::InvalidField {
-                    key: "continue_".to_string(),
-                    value: val.to_string(),
-                }));
+// FIXME This simplistically splits actions by ; even though they
+// might be contained inside actions.  Will deal with later.
+fn parse_action(actions_str: &str) -> Vec<Action> {
+    let mut actions = vec![];
+    for action_str in actions_str.split(";") {
+        let initial_str = action_str.split(" ").next().unwrap_or("").trim();
+        let action = match initial_str.to_lowercase().as_str() {
+            "write" => Action::Write(ActionWrite {}),
+            "shellcmd" => Action::ShellCmd(ActionShellCmd {}),
+            "pipe" => Action::Pipe(ActionPipe {}),
+            "shellexec" => Action::ShellExec(ActionShellExec {}),
+            "pipeexec" => Action::PipeExec(ActionPipeExec {}),
+            "logonly" => Action::LogOnly(ActionLogOnly {}),
+            _ => {
+                Action::None
             }
-        },
-        pattern_type: pattern_type,
-        pattern: pattern,
-        description: config.get("desc").unwrap().to_string(),
-        action: vec![],
-        window: config.get("window").unwrap_or(&"0".to_string()).parse()?,
-        threshold: config.get("thresh").unwrap_or(&"0".to_string()).parse()?,
-    }))
+        };
+        actions.push(action)
+    }
+    return actions;
 }
 
 pub fn parse_rule(s: &str) -> Result<Rule> {
@@ -202,7 +130,7 @@ pub fn parse_rule(s: &str) -> Result<Rule> {
     }
 
     return match config["type"].as_str() {
-        "single" => create_single(config),
+        "single" => single::create_single(config),
         val => {
             return Err(anyhow!(RuleError::InvalidField {
                 key: "type".to_string(),

@@ -1,6 +1,6 @@
-use crate::rules::{ContinueType, Pattern};
-use crate::rules::Rule;
+use crate::rules::{Action, ActionWrite, ContinueType, Pattern};
 use crate::rules::{parse_rule, PatternType};
+use crate::rules::Rule;
 
 #[test]
 fn test_parse_rule_single_ok() {
@@ -27,7 +27,8 @@ thresh=0";
     assert_eq!(foo.description, "ssh login to $1 from $3 for user $2");
     assert_eq!(foo.window, 0);
     assert_eq!(foo.threshold, 0);
-    assert_eq!(foo.action, vec![])
+    assert_eq!(foo.action.len(), 1);
+    assert_eq!(foo.action[0], Action::Write(ActionWrite {}));
 }
 
 #[test]
@@ -57,6 +58,6 @@ thresh=0";
     assert_eq!(foo.description, "ssh login to $1 from $3 for user $2");
     assert_eq!(foo.window, 0);
     assert_eq!(foo.threshold, 0);
-    assert_eq!(foo.action, vec![])
-
+    assert_eq!(foo.action.len(), 1);
+    assert_eq!(foo.action[0], Action::Write(ActionWrite {}));
 }
