@@ -2,11 +2,13 @@ mod processor;
 mod rules;
 
 use pyo3::prelude::*;
+use crate::rules::Rule;
 
 /// Formats the sum of two numbers as string.
 #[pyfunction]
 fn process()  {
-    let _ = processor::process();
+    let rules: Vec<Rule> = Vec::new();
+    let _ = processor::process(rules);
 }
 
 

@@ -1,12 +1,24 @@
+use std::collections::HashMap;
+
+use anyhow::{anyhow, Result};
+use regex::Regex;
+use thiserror::Error;
+
 #[cfg(test)]
 mod tests;
 
-use anyhow::{anyhow, Result};
-use std::collections::HashMap;
-use thiserror::Error;
+#[derive(Error, Debug)]
+pub enum RuleError {
+    #[error("Invalid field (key={key:?}, value={value:?})")]
+    InvalidField { key: String, value: String },
+}
+
+pub trait CheckRule {
+    fn check_rule(&self, line: &str) -> bool;
+}
 
 #[derive(Debug, PartialEq)]
-enum ContinueType {
+pub enum ContinueType {
     TakeNext,
     DontCont,
     EndMatch,
@@ -14,28 +26,43 @@ enum ContinueType {
 }
 
 #[derive(Debug, PartialEq)]
-enum PatternType {
+pub enum PatternType {
     Regex,
     Substr,
     NotRegex,
     NotSubstr,
 }
 
+// #[derive(Debug, PartialEq)]
+enum Pattern {
+    Regex(Regex),
+    Substr(String),
+}
+
 #[derive(Debug, PartialEq)]
-struct Action {
+pub struct Action {
     foo: u32,
 }
 
-struct Single {
+pub struct Single {
     continue_: ContinueType,
     pattern_type: PatternType,
-    pattern: String,
+    pattern: Pattern,
     // varmap
     // context
     description: String,
     action: Vec<Action>,
     window: u32,
     threshold: u32,
+}
+
+impl CheckRule for Single {
+    fn check_rule(&self, line: &str) -> bool {
+        match &self.pattern {
+            Pattern::Regex(re) => { return re.find(line).is_some(); }
+            Pattern::Substr(substr) => { line.contains(substr) }
+        }
+    }
 }
 
 /*
@@ -88,7 +115,7 @@ struct Jump {
 
  */
 
-enum Rule {
+pub enum Rule {
     Single(Single),
     // Pair,
     // Suppress,
@@ -96,15 +123,37 @@ enum Rule {
     // Jump,
 }
 
-#[derive(Error, Debug)]
-pub enum RuleError {
-    #[error("Invalid field (key={key:?}, value={value:?})")]
-    InvalidField { key: String, value: String },
+impl CheckRule for Rule {
+    fn check_rule(&self, line: &str) -> bool {
+        match self {
+            Rule::Single(rule) => rule.check_rule(line)
+        }
+    }
 }
 
+
 fn create_single(config: HashMap<String, String>) -> Result<Rule> {
-    println!("!! {:#?}", config);
-    println!("parse {:?}", "0".parse::<u32>());
+    // println!("!! {:#?}", config);
+    // println!("parse {:?}", "0".parse::<u32>());
+
+    let pattern_type = match config.get("ptype").unwrap().to_lowercase().as_str() {
+        "regexp" => PatternType::Regex,
+        "substr" => PatternType::Substr,
+        "nregexp" => PatternType::NotRegex,
+        "nsubstr" => PatternType::NotSubstr,
+        val => {
+            return Err(anyhow!(RuleError::InvalidField {
+                    key: "pattern_type".to_string(),
+                    value: val.to_string(),
+                }));
+        }
+    };
+    let pattern: Pattern;
+    pattern = match pattern_type {
+        PatternType::Regex | PatternType::NotRegex => Pattern::Regex(Regex::new(config.get("pattern").unwrap()).unwrap()),
+        PatternType::Substr | PatternType::NotSubstr => Pattern::Substr(config.get("pattern").unwrap().to_string()),
+    };
+
     Ok(Rule::Single(Single {
         continue_: match config
             .get("continue")
@@ -123,19 +172,8 @@ fn create_single(config: HashMap<String, String>) -> Result<Rule> {
                 }));
             }
         },
-        pattern_type: match config.get("ptype").unwrap().to_lowercase().as_str() {
-            "regexp" => PatternType::Regex,
-            "substr" => PatternType::Substr,
-            "nregexp" => PatternType::NotRegex,
-            "nsubstr" => PatternType::NotSubstr,
-            val => {
-                return Err(anyhow!(RuleError::InvalidField {
-                    key: "pattern_type".to_string(),
-                    value: val.to_string(),
-                }));
-            }
-        },
-        pattern: config.get("pattern").unwrap().to_string(),
+        pattern_type: pattern_type,
+        pattern: pattern,
         description: config.get("desc").unwrap().to_string(),
         action: vec![],
         window: config.get("window").unwrap_or(&"0".to_string()).parse()?,
@@ -143,7 +181,7 @@ fn create_single(config: HashMap<String, String>) -> Result<Rule> {
     }))
 }
 
-fn parse_rule(s: &str) -> Result<Rule> {
+pub fn parse_rule(s: &str) -> Result<Rule> {
     let mut config = HashMap::new();
 
     let mut current_line: String = "".to_string();
@@ -156,8 +194,7 @@ fn parse_rule(s: &str) -> Result<Rule> {
             continue;
         }
 
-        let cl_clone = current_line.clone();
-        if let Some((key, value)) = cl_clone.split_once('=') {
+        if let Some((key, value)) = current_line.clone().split_once('=') {
             config.insert(key.to_string(), value.to_string());
         }
 

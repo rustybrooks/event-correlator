@@ -1,4 +1,4 @@
-use crate::rules::ContinueType;
+use crate::rules::{ContinueType, Pattern};
 use crate::rules::Rule;
 use crate::rules::{parse_rule, PatternType};
 
@@ -18,10 +18,12 @@ thresh=0";
     let Rule::Single(foo) = r;
     assert_eq!(foo.continue_, ContinueType::TakeNext);
     assert_eq!(foo.pattern_type, PatternType::Regex);
-    assert_eq!(
-        foo.pattern,
-        "(\\S+) sshd\\[\\d+\\]: Accepted.*for (\\S+) from (\\S+) port (\\d+)\\s"
-    );
+    if let Pattern::Regex(pattern_re) = foo.pattern {
+        assert_eq!(
+            pattern_re.as_str(),
+            "(\\S+) sshd\\[\\d+\\]: Accepted.*for (\\S+) from (\\S+) port (\\d+)\\s"
+        );
+    }
     assert_eq!(foo.description, "ssh login to $1 from $3 for user $2");
     assert_eq!(foo.window, 0);
     assert_eq!(foo.threshold, 0);
@@ -46,10 +48,12 @@ thresh=0";
     let Rule::Single(foo) = r;
     assert_eq!(foo.continue_, ContinueType::TakeNext);
     assert_eq!(foo.pattern_type, PatternType::Regex);
-    assert_eq!(
-        foo.pattern,
-        "(\\S+) sshd\\[\\d+\\]: Accepted.*for (\\S+) from (\\S+) port (\\d+)\\s"
-    );
+    if let Pattern::Regex(pattern_re) = foo.pattern {
+        assert_eq!(
+            pattern_re.as_str(),
+            "(\\S+) sshd\\[\\d+\\]: Accepted.*for (\\S+) from (\\S+) port (\\d+)\\s"
+        );
+    }
     assert_eq!(foo.description, "ssh login to $1 from $3 for user $2");
     assert_eq!(foo.window, 0);
     assert_eq!(foo.threshold, 0);

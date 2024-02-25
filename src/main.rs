@@ -1,6 +1,9 @@
+use crate::rules::Rule;
 
 mod processor;
+mod rules;
 
 pub fn main() {
-    let _ = processor::process();
+    let rules: Vec<Rule> = Vec::new();
+    let _ = processor::process(rules);
 }
