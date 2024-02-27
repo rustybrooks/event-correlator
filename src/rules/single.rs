@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::anyhow;
-use regex::{Captures, Regex};
+use regex::Regex;
 
 use crate::rules::{Action, CheckRule, ContinueType, parse_action, Pattern, PatternType, Rule, RuleError};
 
@@ -23,19 +23,26 @@ pub struct Single {
 impl CheckRule for Single {
     fn check_rule(&self, line: &str) -> bool {
         let matches = match &self.pattern {
-            Pattern::Regex(re) => { re.captures(line).unwrap_or(Captures::new()).collect() }
-            Pattern::Substr(substr) => { vec![substr] }
+            Pattern::Regex(re) => {
+                if let Some(captures) = re.captures(line) {
+                    captures.iter().map(|c| c.unwrap().as_str().to_string()).collect()
+                } else {
+                    vec![]
+                }
+            }
+            Pattern::Substr(substr) => { vec![(*substr).clone()] }
         };
 
-        if !matches.len() {
+        if !matches.len() == 0 {
             return false;
         }
 
-        match &self.action {
-            Action::Test(action) => {}
-            _ => {}
-        };
-
+        for action in self.action.iter() {
+            match action {
+                Action::Test(action) => {}
+                _ => {}
+            };
+        }
         return true;
     }
 }

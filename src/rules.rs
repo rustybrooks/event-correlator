@@ -61,6 +61,7 @@ pub struct ActionPipeExec {}
 #[derive(Debug, PartialEq)]
 pub struct ActionLogOnly {}
 
+#[derive(Debug, PartialEq)]
 pub struct ActionTest {
     output: String,
 }
