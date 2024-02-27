@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::anyhow;
-use regex::Regex;
+use regex::{Captures, Regex};
 
 use crate::rules::{Action, CheckRule, ContinueType, parse_action, Pattern, PatternType, Rule, RuleError};
 
@@ -22,10 +22,21 @@ pub struct Single {
 
 impl CheckRule for Single {
     fn check_rule(&self, line: &str) -> bool {
-        match &self.pattern {
-            Pattern::Regex(re) => { return re.find(line).is_some(); }
-            Pattern::Substr(substr) => { line.contains(substr) }
+        let matches = match &self.pattern {
+            Pattern::Regex(re) => { re.captures(line).unwrap_or(Captures::new()).collect() }
+            Pattern::Substr(substr) => { vec![substr] }
+        };
+
+        if !matches.len() {
+            return false;
         }
+
+        match &self.action {
+            Action::Test(action) => {}
+            _ => {}
+        };
+
+        return true;
     }
 }
 
@@ -72,7 +83,7 @@ pub fn create_single(config: HashMap<String, String>) -> anyhow::Result<Rule> {
         },
         pattern_type: pattern_type,
         pattern: pattern,
-        description: config.get("desc").unwrap().to_string(),
+        description: config.get("desc").unwrap_or(&"".to_string()).clone(),
         action: parse_action(config.get("action").unwrap()),
         window: config.get("window").unwrap_or(&"0".to_string()).parse()?,
         threshold: config.get("thresh").unwrap_or(&"0".to_string()).parse()?,

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
+use chrono::{DateTime, Utc};
 use regex::Regex;
 use thiserror::Error;
 
@@ -60,6 +61,10 @@ pub struct ActionPipeExec {}
 #[derive(Debug, PartialEq)]
 pub struct ActionLogOnly {}
 
+pub struct ActionTest {
+    output: String,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Action {
     Write(ActionWrite),
@@ -68,20 +73,28 @@ pub enum Action {
     ShellExec(ActionShellExec),
     PipeExec(ActionPipeExec),
     LogOnly(ActionLogOnly),
+    Test(ActionTest),
     None,
 }
 
 pub enum Rule {
     Single(single::Single),
-    // Pair,
-    // Suppress,
-    // Calendar,
-    // Jump,
 }
 
-impl CheckRule for Rule {
-    fn check_rule(&self, line: &str) -> bool {
-        match self {
+pub struct RuleContext {
+    pub rule: Rule,
+    pub filename: String,
+    pub file_rule_id: u32,
+    descriptions: HashMap<String, String>,
+}
+
+impl RuleContext {
+    pub fn new(rule: Rule, filename: &str, file_rule_id: u32) -> RuleContext {
+        return RuleContext { rule, filename: filename.to_string(), file_rule_id, descriptions: HashMap::new() };
+    }
+
+    pub fn check_rule(&self, line: &str, timestamp: DateTime<Utc>) -> bool {
+        match &self.rule {
             Rule::Single(rule) => rule.check_rule(line)
         }
     }
@@ -92,14 +105,15 @@ impl CheckRule for Rule {
 fn parse_action(actions_str: &str) -> Vec<Action> {
     let mut actions = vec![];
     for action_str in actions_str.split(";") {
-        let initial_str = action_str.split(" ").next().unwrap_or("").trim();
-        let action = match initial_str.to_lowercase().as_str() {
+        let (action_name, action_val) = action_str.split_once(" ").unwrap();
+        let action = match action_name.to_lowercase().as_str() {
             "write" => Action::Write(ActionWrite {}),
             "shellcmd" => Action::ShellCmd(ActionShellCmd {}),
             "pipe" => Action::Pipe(ActionPipe {}),
             "shellexec" => Action::ShellExec(ActionShellExec {}),
             "pipeexec" => Action::PipeExec(ActionPipeExec {}),
             "logonly" => Action::LogOnly(ActionLogOnly {}),
+            "test" => Action::Test(ActionTest { output: action_val.to_string() }),
             _ => {
                 Action::None
             }
@@ -129,8 +143,9 @@ pub fn parse_rule(s: &str) -> Result<Rule> {
         current_line.clear();
     }
 
-    return match config["type"].as_str() {
-        "single" => single::create_single(config),
+    println!("{:?}", config);
+    return match config["type"].to_lowercase().as_str() {
+        "single" | "singlewiththreshold" => single::create_single(config),
         val => {
             return Err(anyhow!(RuleError::InvalidField {
                 key: "type".to_string(),
